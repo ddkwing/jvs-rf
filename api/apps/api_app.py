@@ -871,6 +871,7 @@ def retrieval():
 
     try:
         kbs = KnowledgebaseService.get_by_ids(kb_ids)
+        kbs = KnowledgebaseService.get_by_ids(kb_ids)
         embd_nms = list(set([kb.embd_id for kb in kbs]))
         if len(embd_nms) != 1:
             return get_json_result(

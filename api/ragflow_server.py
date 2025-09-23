@@ -45,6 +45,7 @@ from api.utils import show_configs
 from rag.settings import print_rag_settings
 from rag.utils.mcp_tool_call_conn import shutdown_all_mcp_sessions
 from rag.utils.redis_conn import RedisDistributedLock
+from rag.nlp.model_manager import get_model_manager
 
 stop_event = threading.Event()
 
@@ -70,6 +71,12 @@ def update_progress():
 
 def signal_handler(sig, frame):
     logging.info("Received interrupt signal, shutting down...")
+    # 清理模型资源
+    try:
+        model_manager = get_model_manager()
+        model_manager.cleanup()
+    except Exception as e:
+        logging.error(f"Error during model cleanup: {e}")
     shutdown_all_mcp_sessions()
     stop_event.set()
     time.sleep(1)
@@ -125,6 +132,19 @@ if __name__ == '__main__':
     RuntimeConfig.init_config(JOB_SERVER_HOST=settings.HOST_IP, HTTP_PORT=settings.HOST_PORT)
 
     GlobalPluginManager.load_plugins()
+
+    # 初始化模型
+    try:
+        logging.info("开始初始化模型...")
+        model_manager = get_model_manager()
+        model_manager.initialize_models()
+        logging.info("模型初始化完成!")
+    except Exception as e:
+        logging.error(f"模型初始化失败: {e}")
+        # 根据配置决定是否继续启动
+        logging.error("由于模型初始化失败，应用启动终止")
+        sys.exit(1)            
+       
 
     signal.signal(signal.SIGINT, signal_handler)
     signal.signal(signal.SIGTERM, signal_handler)

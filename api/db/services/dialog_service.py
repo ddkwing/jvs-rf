@@ -272,7 +272,7 @@ def convert_conditions(metadata_condition):
 
 def meta_filter(metas: dict, filters: list[dict]):
     doc_ids = set([])
-
+    print("filters: ", filters)
     def filter_out(v2docs, operator, value):
         ids = []
         for input, docids in v2docs.items():
@@ -313,7 +313,7 @@ def meta_filter(metas: dict, filters: list[dict]):
             if not doc_ids:
                 doc_ids = set(ids)
             else:
-                doc_ids = doc_ids & set(ids)
+                doc_ids = doc_ids | set(ids)
             if not doc_ids:
                 return []
     return list(doc_ids)

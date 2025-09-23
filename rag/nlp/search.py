@@ -24,7 +24,8 @@ from rag.utils import rmSpace, get_float
 from rag.nlp import rag_tokenizer, query
 import numpy as np
 from rag.utils.doc_store_conn import DocStoreConnection, MatchDenseExpr, FusionExpr, OrderByExpr
-
+from rag.nlp.model_manager import get_rerank_model
+from rag.nlp.model_manager import RerankModel
 
 def index_name(uid): return f"ragflow_{uid}"
 
@@ -348,6 +349,8 @@ class Dealer:
                   vector_similarity_weight=0.3, top=1024, doc_ids=None, aggs=True,
                   rerank_mdl=None, highlight=False,
                   rank_feature: dict | None = {PAGERANK_FLD: 10}):
+       
+        from api.db.services.document_service import DocumentService
         ranks = {"total": 0, "chunks": [], "doc_aggs": {}}
         if not question:
             return ranks
@@ -433,8 +436,24 @@ class Dealer:
                               "count": v["count"]} for k,
                                                        v in sorted(ranks["doc_aggs"].items(),
                                                                    key=lambda x: x[1]["count"] * -1)]
-        ranks["chunks"] = ranks["chunks"][:page_size]
-
+        doc_ids = [ v["doc_id"] for v in ranks["doc_aggs"]]
+       
+        docs = DocumentService.get_by_ids(doc_ids)
+        if docs:
+            id_mate_data_map = {v.id: v.meta_fields for v in docs}
+            for r in ranks["doc_aggs"]:
+                r["meta_fields"] = id_mate_data_map[r["doc_id"]] if r["doc_id"] in id_mate_data_map else {}
+        rerank_model: RerankModel = get_rerank_model()
+        # 确保传入的是 list[str]
+        passages = [c["content_with_weight"] if isinstance(c, dict) else str(c) for c in ranks["chunks"]]
+        logging.info(f"Passages: {passages[:200]}")
+        # 调用 rerank
+        reranked = rerank_model.rerank(question, passages, page_size)
+        logging.info(f"Reranked: {reranked}")
+        ranked_passages = reranked["ranked_passages"]                                                                   
+        # 按照 ranked_passages 的顺序重新排序 ranks["chunks"]
+        ranks["chunks"] = [ranks["chunks"][i] for i in [p["original_index"] for p in ranked_passages]]
+        
         return ranks
 
     def sql_retrieval(self, sql, fetch_size=128, format="json"):

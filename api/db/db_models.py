@@ -298,6 +298,9 @@ class DatabaseMigrator(Enum):
 class BaseDataBase:
     def __init__(self):
         database_config = settings.DATABASE.copy()
+        # 指定字符集COLLATE utf8mb4_0900_ai_ci
+        
+        database_config["charset"] = "utf8mb4"
         db_name = database_config.pop("name")
         self.database_connection = PooledDatabase[settings.DATABASE_TYPE.upper()].value(db_name, **database_config)
         logging.info("init database on cluster mode successfully")
